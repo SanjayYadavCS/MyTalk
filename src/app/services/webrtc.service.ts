@@ -86,7 +86,6 @@ export class WebRTCService {
 
             const answer = await this.peerConnection!.createAnswer();
             await this.peerConnection!.setLocalDescription(answer);
-            await this.peerConnection!.setLocalDescription(answer);
             await this.signalR.sendSignal({ type: 'answer', sdp: answer }, senderId);
             this.isCallActive.next(true);
             this.callStatus.next('connected');

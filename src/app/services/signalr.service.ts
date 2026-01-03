@@ -52,9 +52,32 @@ export class SignalRService {
     PushNotifications.addListener('registration', (token) => {
       console.log('Push registration success, token: ' + token.value);
       this.currentFcmToken = token.value;
-      // If we are already logged in, update the token on the server
       const savedId = localStorage.getItem('myId');
       if (savedId) this.setDeviceToken(savedId, token.value);
+    });
+
+    // Create the High Priority Channel for Android
+    await PushNotifications.createChannel({
+      id: 'calls',
+      name: 'Incoming Calls',
+      description: 'Notifications for incoming voice and video calls',
+      importance: 5, // High
+      visibility: 1, // Public
+      sound: 'default', // or a custom sound name if you added one
+      vibration: true
+    });
+
+    // Register Action Types (Accept/Reject) - Casting to any to bypass potential type mismatch in older plugins
+    (PushNotifications as any).registerActionTypes({
+      types: [
+        {
+          id: 'CALL_INVITE',
+          actions: [
+            { id: 'accept', title: 'Accept', foreground: true },
+            { id: 'decline', title: 'Decline', foreground: false, destructive: true }
+          ]
+        }
+      ]
     });
 
     PushNotifications.addListener('registrationError', (error: any) => {
