@@ -44,9 +44,10 @@
 
       <!-- Current User Profile -->
       <div class="profile-strip">
-        <div class="user-avatar">{{ myId.substring(0,2).toUpperCase() }}</div>
+        <div class="user-avatar" (click)="editName()">{{ (myProfile?.name || myId).substring(0,2).toUpperCase() }}</div>
         <div class="user-info">
-          <h3>{{ myId }}</h3>
+          <h3>{{ myProfile?.name || myId }}</h3>
+          <p class="user-number" *ngIf="myProfile">{{ myProfile.phoneNumber }}</p>
           <span class="status-badge" [ngClass]="connectionStatus">
             <span class="dot"></span>
             {{ connectionStatus === 'connected' ? 'Online' : connectionStatus === 'connecting' ? 'Connecting...' :
@@ -70,16 +71,19 @@
         <div class="call-card glass-morph">
           <div class="ringing-wrapper">
             <div class="ring-pulse"></div>
-            <div class="caller-avatar">{{ incomingCall.senderId.substring(0,2).toUpperCase() }}</div>
+            <div class="caller-avatar">{{ (getProfile(incomingCall.senderId)?.name ||
+              incomingCall.senderId).substring(0,2).toUpperCase() }}</div>
           </div>
 
-          <h2 class="caller-name">{{ incomingCall.senderId }}</h2>
-          <p class="call-label">INCOMING CALL</p>
+          <h2 class="caller-name">{{ getProfile(incomingCall.senderId)?.name || incomingCall.senderId }}</h2>
+          <p class="caller-num" *ngIf="getProfile(incomingCall.senderId)">{{
+            getProfile(incomingCall.senderId)?.phoneNumber }}</p>
+          <p class="call-label">INCOMING VOICE CALL</p>
 
           <div class="slider-container">
             <div class="slider-track">
-              <span class="swipe-label left">Reject</span>
-              <span class="swipe-label right">Answer</span>
+              <span class="swipe-label left">Decline</span>
+              <span class="swipe-label right">Accept</span>
               <ion-range min="0" max="100" [(ngModel)]="sliderValue" (ionChange)="onSliderChange($event)" debounce="0"
                 class="call-slider">
                 <ion-icon slot="start" name="close-circle" color="danger"></ion-icon>
@@ -93,9 +97,11 @@
       <!-- Active Call Display -->
       <div *ngIf="isCallActive" class="active-call-container animate-scale-in">
         <div class="call-status">
-          <div class="pulsing-circle"></div>
-          <h2>{{ currentTargetId }}</h2>
-          <p>{{ callDuration }} • Voice Streaming</p>
+          <div class="pulsing-circle" [class.connected]="callStatus === 'connected'"></div>
+          <h2>{{ getProfile(currentTargetId)?.name || currentTargetId }}</h2>
+          <p *ngIf="callStatus === 'connected'">{{ callDuration }} • Voice Streaming</p>
+          <p *ngIf="callStatus === 'calling'">Calling...</p>
+          <p *ngIf="callStatus === 'ringing'">Ringing...</p>
         </div>
         <ion-button expand="block" color="danger" class="end-call-btn" (click)="stopCall()">
           <ion-icon name="call-outline" slot="start" class="rotate-135"></ion-icon>
@@ -103,27 +109,40 @@
         </ion-button>
       </div>
 
-      <!-- Online Users List -->
-      <div *ngIf="!isCallActive" class="user-list-section">
+      <!-- Tabs Segment -->
+      <div *ngIf="!isCallActive" class="tab-segment-wrapper">
+        <ion-segment [value]="selectedTab" (ionChange)="setTab($any($event).detail.value)">
+          <ion-segment-button value="active">
+            <ion-label>Online</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="contacts">
+            <ion-label>Contacts</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="dialer">
+            <ion-label>Dialer</ion-label>
+          </ion-segment-button>
+        </ion-segment>
+      </div>
+
+      <!-- Tab Content: ONLINE -->
+      <div *ngIf="!isCallActive && selectedTab === 'active'" class="user-list-section animate-fade-in">
         <div class="section-header">
           <h3>Online Friends</h3>
           <span class="count">{{ onlineUsers.length }} Active</span>
         </div>
 
         <div class="users-grid">
-          <div *ngFor="let user of onlineUsers" class="user-card animate-fade-in">
+          <div *ngFor="let userId of onlineUsers" class="user-card animate-fade-in">
             <div class="u-info">
-              <div class="u-avatar small">{{ user.substring(0,2).toUpperCase() }}</div>
+              <div class="u-avatar small">{{ (getProfile(userId)?.name || userId).substring(0,2).toUpperCase() }}</div>
               <div class="u-details">
-                <span class="u-name">{{ user }}</span>
-                <span class="u-status"><span class="dot mini"></span> Online</span>
+                <span class="u-name">{{ getProfile(userId)?.name || userId }}</span>
+                <span class="u-number">{{ getProfile(userId)?.phoneNumber }}</span>
+                <span class="u-status"><span class="dot mini online"></span> Online</span>
               </div>
             </div>
             <div class="u-actions">
-              <button class="call-icon-btn announce" (click)="startCall(user, 'announcement')">
-                <ion-icon name="megaphone-outline"></ion-icon>
-              </button>
-              <button class="call-icon-btn voice" (click)="startCall(user, 'call')">
+              <button class="call-icon-btn voice" (click)="startCall(userId, 'call')">
                 <ion-icon name="call-outline"></ion-icon>
               </button>
             </div>
@@ -131,33 +150,70 @@
 
           <div *ngIf="onlineUsers.length === 0" class="empty-state">
             <ion-icon name="people-outline"></ion-icon>
-            <p>Wait for friends to join the network</p>
+            <p>No active connections right now</p>
           </div>
         </div>
       </div>
 
-      <!-- Saved Messages List -->
-      <div *ngIf="!isCallActive" class="messages-section animate-fade-in">
+      <!-- Tab Content: CONTACTS (Combined All Known) -->
+      <div *ngIf="!isCallActive && selectedTab === 'contacts'" class="user-list-section animate-fade-in">
         <div class="section-header">
-          <h3>Recorded Messages</h3>
-          <span class="count">{{ savedMessages.length }}</span>
+          <h3>Saved Contacts</h3>
+          <span class="count">{{ allProfiles.length }} Total</span>
         </div>
 
-        <div class="messages-list">
-          <div *ngFor="let msg of savedMessages" class="message-item">
-            <div class="msg-icon">
-              <ion-icon name="play-circle" color="secondary"></ion-icon>
+        <div class="users-grid">
+          <div *ngFor="let profile of allProfiles" class="user-card animate-fade-in"
+            [ngClass]="{'offline': !isUserOnline(profile.userId)}">
+            <div class="u-info">
+              <div class="u-avatar small" [ngClass]="{'gray': !isUserOnline(profile.userId)}">
+                {{ profile.name.substring(0,2).toUpperCase() }}
+              </div>
+              <div class="u-details">
+                <span class="u-name">{{ profile.name }}</span>
+                <span class="u-number">{{ profile.phoneNumber }}</span>
+                <span class="u-status">
+                  <span class="dot mini" [ngClass]="isUserOnline(profile.userId) ? 'online' : 'offline'"></span>
+                  {{ isUserOnline(profile.userId) ? 'Online' : 'Offline' }}
+                </span>
+              </div>
             </div>
-            <div class="msg-details">
-              <h4>From: {{ msg.senderId }}</h4>
-              <p>{{ msg.timestamp | date:'shortTime' }}</p>
-              <audio controls class="custom-audio-player" [src]="msg.url">
-              </audio>
+            <div class="u-actions">
+              <button class="call-icon-btn voice" (click)="startCall(profile.userId, 'call')">
+                <ion-icon [name]="isUserOnline(profile.userId) ? 'call-outline' : 'notifications-outline'"></ion-icon>
+              </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div *ngIf="savedMessages.length === 0" class="empty-state mini">
-            <p>No saved messages yet</p>
+      <!-- Tab Content: DIALER -->
+      <div *ngIf="!isCallActive && selectedTab === 'dialer'" class="dialer-wrapper animate-fade-in">
+        <div class="dialpad-container">
+          <div class="dial-display">
+            <ion-input [(ngModel)]="searchQuery" placeholder="Enter ID or Number..." class="dial-input"></ion-input>
+          </div>
+
+          <ion-button expand="block" shape="round" class="huge-call-btn" (click)="startCall(searchQuery, 'call')"
+            [disabled]="!searchQuery">
+            <ion-icon name="call" slot="start"></ion-icon>
+            Start VoIP Session
+          </ion-button>
+        </div>
+
+        <div class="messages-section animate-fade-in" style="margin-top: 30px;">
+          <div class="section-header">
+            <h3>Recent Recordings</h3>
+          </div>
+          <div class="messages-list">
+            <div *ngFor="let msg of savedMessages" class="message-item">
+              <div class="msg-icon"><ion-icon name="mic-outline"></ion-icon></div>
+              <div class="msg-details">
+                <h4>{{ getProfile(msg.senderId)?.name || msg.senderId }}</h4>
+                <p>{{ msg.timestamp | date:'shortTime' }}</p>
+                <audio controls [src]="msg.url"></audio>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -135,6 +135,13 @@
       margin: 0;
     }
 
+    .user-number {
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      margin: 0;
+      margin-top: -2px;
+    }
+
     .status-badge {
       font-size: 12px;
       color: var(--ion-color-success);
@@ -155,6 +162,7 @@
 
     &.connecting {
       color: #f59e0b;
+
       .dot {
         background: #f59e0b;
         box-shadow: 0 0 8px #f59e0b;
@@ -163,9 +171,25 @@
 
     &.disconnected {
       color: var(--ion-color-danger);
+
       .dot {
         background: var(--ion-color-danger);
         box-shadow: 0 0 8px var(--ion-color-danger);
+      }
+    }
+  }
+
+  .tab-segment-wrapper {
+    margin-bottom: 20px;
+
+    ion-segment {
+      --background: #f1f5f9;
+      border-radius: 12px;
+
+      ion-segment-button {
+        --color: #64748b;
+        --color-checked: var(--ion-color-primary);
+        font-weight: 600;
       }
     }
   }
@@ -201,6 +225,67 @@
       ion-icon {
         color: white;
       }
+    }
+  }
+}
+
+/* Quick Search Bar */
+.search-section {
+  margin-bottom: 24px;
+
+  .custom-search {
+    --background: rgba(0, 0, 0, 0.04);
+    --border-radius: 16px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+
+    ion-icon {
+      color: var(--ion-color-primary);
+      font-size: 20px;
+    }
+
+    ion-input {
+      font-weight: 500;
+      color: var(--ion-color-dark);
+    }
+
+    ion-button {
+      --color: var(--ion-color-primary);
+      margin-right: -10px;
+    }
+  }
+}
+
+/* Dialer Tab Styles */
+.dialer-wrapper {
+  .dialpad-container {
+    background: white;
+    padding: 24px;
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    text-align: center;
+
+    .dial-display {
+      margin-bottom: 20px;
+
+      .dial-input {
+        --background: #f8fafc;
+        --padding-start: 20px;
+        --border-radius: 12px;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--ion-color-primary);
+        text-align: center;
+      }
+    }
+
+    .huge-call-btn {
+      --padding-top: 25px;
+      --padding-bottom: 25px;
+      --border-radius: 16px;
+      font-weight: 700;
+      font-size: 16px;
+      margin: 0;
     }
   }
 }
@@ -248,6 +333,23 @@
     transform: scale(0.98);
   }
 
+  &.offline {
+    opacity: 0.6;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    box-shadow: none;
+
+    .u-avatar.gray {
+      background: #94a3b8;
+      color: white;
+    }
+
+    .u-actions .call-icon-btn.voice {
+      background: #e2e8f0;
+      color: #64748b;
+    }
+  }
+
   .u-info {
     display: flex;
     align-items: center;
@@ -267,10 +369,18 @@
     }
 
     .u-details {
+      display: flex;
+      flex-direction: column;
+
       .u-name {
         display: block;
         font-weight: 700;
         font-size: 16px;
+      }
+
+      .u-number {
+        font-size: 11px;
+        color: var(--ion-color-medium);
       }
 
       .u-status {
@@ -283,9 +393,17 @@
         .dot.mini {
           width: 5px;
           height: 5px;
-          background: var(--ion-color-success);
           border-radius: 50%;
           display: inline-block;
+
+          &.online {
+            background: var(--ion-color-success);
+            box-shadow: 0 0 5px var(--ion-color-success);
+          }
+
+          &.offline {
+            background: #666;
+          }
         }
       }
     }
@@ -342,10 +460,15 @@
     .pulsing-circle {
       width: 80px;
       height: 80px;
-      background: var(--ion-color-success);
+      background: var(--ion-color-secondary);
       border-radius: 50%;
       margin: 0 auto 20px;
-      animation: pulse-success 2s infinite;
+      animation: pulse-blue 2s infinite;
+
+      &.connected {
+        background: var(--ion-color-success);
+        animation: pulse-success 2s infinite;
+      }
     }
 
     h2 {
@@ -428,13 +551,21 @@
       color: var(--ion-text-color);
     }
 
+    .caller-num {
+      font-size: 16px;
+      color: var(--ion-color-medium);
+      margin: 5px 0 0;
+      font-weight: 500;
+    }
+
     .call-label {
-      font-size: 13px;
-      letter-spacing: 2px;
+      font-size: 11px;
+      letter-spacing: 3px;
       font-weight: 700;
       color: var(--ion-color-primary);
-      margin: 10px 0 60px;
+      margin: 15px 0 50px;
       text-transform: uppercase;
+      opacity: 0.8;
     }
   }
 }

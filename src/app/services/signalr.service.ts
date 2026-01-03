@@ -7,14 +7,23 @@ import { CapacitorHttp } from '@capacitor/core';
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
+export interface UserProfile {
+  userId: string;
+  name: string;
+  phoneNumber: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class SignalRService {
   private hubConnection!: signalR.HubConnection;
   public signalReceived = new Subject<{ data: any, senderId: string }>();
+  public pushCallReceived = new Subject<{ callerId: string, callerName: string, callerNumber: string, autoAnswer?: boolean }>();
   public connectionId = new BehaviorSubject<string>('');
   public onlineUsers = new BehaviorSubject<string[]>([]);
+  public allKnownProfiles = new BehaviorSubject<UserProfile[]>([]);
+  public myProfile = new BehaviorSubject<UserProfile | null>(null);
   public isConnected = new BehaviorSubject<boolean>(false);
   public connectionStatus$ = new BehaviorSubject<ConnectionStatus>('disconnected');
   private retryCount = 0;
@@ -52,9 +61,47 @@ export class SignalRService {
       console.error('Error on registration: ' + JSON.stringify(error));
     });
 
-    // Handle the notification arrival while the app is open
+    // Handle button clicks from the notification tray
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('Push action performed:', notification.actionId);
+      const data = notification.notification.data;
+
+      if (data && data.type === 'incoming_call') {
+        const autoAnswer = notification.actionId === 'accept';
+
+        // App will move to foreground, trigger the pushCallReceived to show UI
+        this.pushCallReceived.next({
+          callerId: data.callerId,
+          callerName: data.callerName,
+          callerNumber: data.callerNumber,
+          autoAnswer: autoAnswer
+        });
+
+        if (notification.actionId === 'decline') {
+          // Send reject signal if possible
+          if (data.callerId) {
+            this.sendSignal({ type: 'reject' }, data.callerId);
+          }
+        } else {
+          this.ensureConnected();
+        }
+      }
+    });
+
+    // Handle the notification arrival while the app is open or background
     PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received: ' + JSON.stringify(notification));
+      console.log('Push received:', notification);
+      const data = notification.data;
+
+      if (data && data.type === 'incoming_call') {
+        console.log('Incoming call via Push detected!');
+        this.pushCallReceived.next({
+          callerId: data.callerId,
+          callerName: data.callerName,
+          callerNumber: data.callerNumber
+        });
+        this.ensureConnected();
+      }
     });
   }
 
@@ -74,8 +121,15 @@ export class SignalRService {
       this.signalReceived.next({ data, senderId });
     });
 
-    this.hubConnection.on("UserListUpdated", (users: string[]) => {
-      this.onlineUsers.next(users);
+    this.hubConnection.on("UserListUpdated", (online: string[], profiles: UserProfile[]) => {
+      this.onlineUsers.next(online);
+      this.allKnownProfiles.next(profiles);
+
+      const savedId = localStorage.getItem('myId');
+      if (savedId) {
+        const myProf = profiles.find(p => p.userId === savedId);
+        if (myProf) this.myProfile.next(myProf);
+      }
     });
 
     this.hubConnection.onclose(() => {
@@ -183,16 +237,29 @@ export class SignalRService {
     }
   }
 
-  public async register(userId: string) {
+  public async register(userId: string, name?: string) {
     try {
       this.lastRegisteredUserId = userId;
       await this.ensureConnected();
-      await this.hubConnection.invoke("Register", userId);
+      const profile = await this.hubConnection.invoke<UserProfile>("Register", userId, name || localStorage.getItem('myName'));
+      if (profile) {
+        this.myProfile.next(profile);
+      }
       if (this.currentFcmToken) {
         await this.setDeviceToken(userId, this.currentFcmToken);
       }
     } catch (err) {
       console.error('Error registering:', err);
+    }
+  }
+
+  public async updateProfile(name: string) {
+    try {
+      await this.ensureConnected();
+      await this.hubConnection.invoke("UpdateProfile", name);
+      localStorage.setItem('myName', name);
+    } catch (err) {
+      console.error('Error updating profile:', err);
     }
   }
 

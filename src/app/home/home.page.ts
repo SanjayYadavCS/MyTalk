@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, NgZone } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { SignalRService } from '../services/signalr.service';
-import { WebRTCService, CallMode } from '../services/webrtc.service';
+import { SignalRService, UserProfile } from '../services/signalr.service';
+import { WebRTCService, CallMode, CallStatus } from '../services/webrtc.service';
 import { Subscription, interval } from 'rxjs';
 
 interface SavedMessage {
@@ -21,9 +21,15 @@ export class HomePage implements OnInit, OnDestroy {
   myId: string = '';
   isRegistered = false;
   isCallActive = false;
+  callStatus: CallStatus = 'idle';
   currentTargetId = '';
 
   onlineUsers: string[] = [];
+  offlineProfiles: UserProfile[] = [];
+  allProfiles: UserProfile[] = [];
+  myProfile: UserProfile | null = null;
+  searchQuery: string = '';
+  selectedTab: 'active' | 'contacts' | 'dialer' = 'active';
   incomingCall: { senderId: string, mode: CallMode, offerSdp: any } | null = null;
   connectionStatus: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
 
@@ -37,6 +43,7 @@ export class HomePage implements OnInit, OnDestroy {
 
   private timerSub: Subscription | null = null;
   private startTime: number = 0;
+  private pendingAutoAccept = false;
 
   constructor(
     private signalR: SignalRService,
@@ -47,10 +54,17 @@ export class HomePage implements OnInit, OnDestroy {
     this.webRTC.isCallActive.subscribe(status => {
       this.zone.run(() => {
         this.isCallActive = status;
-        if (status) {
-          this.startTimer();
-        } else {
+        if (!status) {
           this.stopTimer();
+        }
+      });
+    });
+
+    this.webRTC.callStatus.subscribe(status => {
+      this.zone.run(() => {
+        this.callStatus = status;
+        if (status === 'connected') {
+          this.startTimer();
         }
       });
     });
@@ -60,14 +74,57 @@ export class HomePage implements OnInit, OnDestroy {
     });
 
     this.signalR.onlineUsers.subscribe(users => {
-      this.zone.run(() => this.onlineUsers = users.filter(u => u !== this.myId));
+      this.zone.run(() => {
+        this.onlineUsers = users.filter(u => u !== this.myId);
+        this.updateOfflineUsers();
+      });
+    });
+
+    this.signalR.allKnownProfiles.subscribe(profiles => {
+      this.zone.run(() => {
+        this.allProfiles = profiles;
+        this.updateOfflineUsers();
+      });
+    });
+
+    this.signalR.myProfile.subscribe(profile => {
+      this.zone.run(() => this.myProfile = profile);
     });
 
     this.webRTC.incomingCall.subscribe(call => {
       this.zone.run(() => {
         this.incomingCall = call as any;
-        this.sliderValue = 50;
-        this.playRingtone();
+
+        if (this.pendingAutoAccept && this.incomingCall && this.incomingCall.senderId === call.senderId) {
+          console.log("Auto-accepting incoming call...");
+          this.acceptCall();
+          this.pendingAutoAccept = false;
+        } else {
+          this.sliderValue = 50;
+          this.playRingtone();
+        }
+      });
+    });
+
+    this.signalR.pushCallReceived.subscribe(data => {
+      this.zone.run(() => {
+        // Only trigger if we aren't already in a call or already showing a ringer
+        if (!this.isCallActive && !this.incomingCall) {
+          this.incomingCall = {
+            senderId: data.callerId,
+            mode: 'call',
+            offerSdp: null
+          };
+
+          if (data.autoAnswer) {
+            this.pendingAutoAccept = true;
+            // Maybe show a spinner? The incomingCall UI will show briefly until Register completes and offer arrives
+            this.sliderValue = 95; // Visual cue
+          } else {
+            this.sliderValue = 50;
+            this.playRingtone();
+          }
+        }
       });
     });
     this.signalR.connectionStatus$.subscribe(status => {
@@ -135,15 +192,30 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  register() {
+  async register() {
     if (this.myId) {
-      this.signalR.register(this.myId).then(() => {
-        this.zone.run(() => {
-          this.isRegistered = true;
-          this.saveData();
-        });
+      const name = localStorage.getItem('myName') || this.myId;
+      await this.signalR.register(this.myId, name);
+      this.zone.run(() => {
+        this.isRegistered = true;
+        this.saveData();
       });
     }
+  }
+
+  async editName() {
+    const newName = prompt("Enter your name:", this.myProfile?.name || "");
+    if (newName) {
+      await this.signalR.updateProfile(newName);
+    }
+  }
+
+  getProfile(userId: string): UserProfile | undefined {
+    return this.allProfiles.find(p => p.userId === userId);
+  }
+
+  setTab(tab: 'active' | 'contacts' | 'dialer') {
+    this.selectedTab = tab;
   }
 
   startCall(targetId: string, mode: CallMode) {
@@ -203,6 +275,15 @@ export class HomePage implements OnInit, OnDestroy {
     setTimeout(() => {
       event.target.complete();
     }, 1000);
+  }
+
+  updateOfflineUsers() {
+    const online = this.signalR.onlineUsers.value;
+    this.offlineProfiles = this.allProfiles.filter(p => p.userId !== this.myId && !online.includes(p.userId));
+  }
+
+  isUserOnline(userId: string): boolean {
+    return this.onlineUsers.includes(userId);
   }
 
   async checkCors() {

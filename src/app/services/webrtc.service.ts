@@ -4,6 +4,7 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 
 export type CallMode = 'announcement' | 'call';
+export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connected';
 
 @Injectable({ providedIn: 'root' })
 export class WebRTCService {
@@ -12,6 +13,7 @@ export class WebRTCService {
     private currentTargetId: string = '';
     private candidatesQueue: RTCIceCandidateInit[] = [];
     public isCallActive = new BehaviorSubject<boolean>(false);
+    public callStatus = new BehaviorSubject<CallStatus>('idle');
     public incomingCall = new Subject<{ senderId: string, mode: CallMode, offerSdp: any }>();
     public currentTargetId$ = new BehaviorSubject<string>('');
     public isRecordMode$ = new BehaviorSubject<boolean>(false);
@@ -54,10 +56,12 @@ export class WebRTCService {
 
             await this.signalR.sendSignal({ type: 'offer', sdp: offer, mode: mode }, targetUserId);
             this.isCallActive.next(true);
+            this.callStatus.next('calling');
             try { await KeepAwake.keepAwake(); } catch (e) { }
         } catch (e) {
             console.error('Error starting call:', e);
             alert('Could not access microphone.');
+            this.cleanup();
         }
     }
 
@@ -82,8 +86,10 @@ export class WebRTCService {
 
             const answer = await this.peerConnection!.createAnswer();
             await this.peerConnection!.setLocalDescription(answer);
+            await this.peerConnection!.setLocalDescription(answer);
             await this.signalR.sendSignal({ type: 'answer', sdp: answer }, senderId);
             this.isCallActive.next(true);
+            this.callStatus.next('connected');
         } catch (e) {
             console.error('Error accepting call:', e);
             this.cleanup();
@@ -189,10 +195,16 @@ export class WebRTCService {
                 await this.acceptCall(senderId, 'announcement', data.sdp);
             } else {
                 // Show Incoming Call UI for mode 'call'
+                this.signalR.sendSignal({ type: 'ringing' }, senderId); // Tell caller we are ringing
                 this.incomingCall.next({ senderId, mode: data.mode, offerSdp: data.sdp } as any);
+                this.callStatus.next('ringing');
             }
         }
+        else if (data.type === 'ringing') {
+            this.callStatus.next('ringing');
+        }
         else if (data.type === 'answer') {
+            this.callStatus.next('connected');
             await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(data.sdp));
             await this.processQueue();
         }
