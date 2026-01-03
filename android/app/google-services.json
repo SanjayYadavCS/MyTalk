@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "256099125250",
+    "project_id": "mytalk-1c2d1",
+    "storage_bucket": "mytalk-1c2d1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256099125250:android:7a18ba58044a1af268ff1b",
+        "android_client_info": {
+          "package_name": "io.ionic.starter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDJABAA5Ix3NO7OsQ69h8sryGNKH0VqwI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

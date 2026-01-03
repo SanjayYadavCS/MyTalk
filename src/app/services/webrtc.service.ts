@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { SignalRService } from './signalr.service';
 import { BehaviorSubject, Subject } from 'rxjs';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 
 export type CallMode = 'announcement' | 'call';
 
@@ -53,6 +54,7 @@ export class WebRTCService {
 
             await this.signalR.sendSignal({ type: 'offer', sdp: offer, mode: mode }, targetUserId);
             this.isCallActive.next(true);
+            try { await KeepAwake.keepAwake(); } catch (e) { }
         } catch (e) {
             console.error('Error starting call:', e);
             alert('Could not access microphone.');
@@ -64,6 +66,7 @@ export class WebRTCService {
         this.currentTargetId$.next(senderId);
         this.currentMode = mode;
         this.createPeerConnection();
+        try { await KeepAwake.keepAwake(); } catch (e) { }
 
         try {
             await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(offerSdp));
@@ -113,6 +116,7 @@ export class WebRTCService {
         this.candidatesQueue = [];
         this.isCallActive.next(false);
         this.stopRecording();
+        try { KeepAwake.allowSleep(); } catch (e) { }
     }
 
     private createPeerConnection() {
