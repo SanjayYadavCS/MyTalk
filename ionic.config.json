@@ -1,0 +1,7 @@
+{
+  "name": "MyTalk.Client",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
