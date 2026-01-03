@@ -149,6 +149,23 @@
         background: var(--ion-color-success);
         border-radius: 50%;
         box-shadow: 0 0 8px var(--ion-color-success);
+        transition: all 0.3s ease;
+      }
+    }
+
+    &.connecting {
+      color: #f59e0b;
+      .dot {
+        background: #f59e0b;
+        box-shadow: 0 0 8px #f59e0b;
+      }
+    }
+
+    &.disconnected {
+      color: var(--ion-color-danger);
+      .dot {
+        background: var(--ion-color-danger);
+        box-shadow: 0 0 8px var(--ion-color-danger);
       }
     }
   }
@@ -259,6 +276,17 @@
       .u-status {
         font-size: 11px;
         color: var(--ion-color-medium);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .dot.mini {
+          width: 5px;
+          height: 5px;
+          background: var(--ion-color-success);
+          border-radius: 50%;
+          display: inline-block;
+        }
       }
     }
   }

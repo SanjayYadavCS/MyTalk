@@ -25,6 +25,7 @@ export class HomePage implements OnInit, OnDestroy {
 
   onlineUsers: string[] = [];
   incomingCall: { senderId: string, mode: CallMode, offerSdp: any } | null = null;
+  connectionStatus: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
 
   callDuration = '00:00';
   isRecordMode = false;
@@ -68,6 +69,9 @@ export class HomePage implements OnInit, OnDestroy {
         this.sliderValue = 50;
         this.playRingtone();
       });
+    });
+    this.signalR.connectionStatus$.subscribe(status => {
+      this.zone.run(() => this.connectionStatus = status);
     });
 
     this.webRTC.onMessageSaved.subscribe(async msg => {
@@ -192,6 +196,22 @@ export class HomePage implements OnInit, OnDestroy {
     this.isRecordMode = !this.isRecordMode;
     this.webRTC.isRecordMode$.next(this.isRecordMode);
     this.saveData();
+  }
+
+  async handleRefresh(event: any) {
+    await this.signalR.manualReconnect();
+    setTimeout(() => {
+      event.target.complete();
+    }, 1000);
+  }
+
+  async checkCors() {
+    try {
+      const result = await this.signalR.testCors();
+      alert('CORS Success: ' + JSON.stringify(result));
+    } catch (err) {
+      alert('CORS Failed: ' + err);
+    }
   }
 
   logout() {

@@ -1,4 +1,8 @@
 <ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <div class="main-container">
     <div class="header-section">
       <div class="logo-area">
@@ -26,6 +30,11 @@
           <ion-button expand="block" (click)="register()" [disabled]="!myId" class="primary-btn">
             Connect to Network
           </ion-button>
+          <ion-button expand="block" fill="clear" color="medium" (click)="checkCors()"
+            style="margin-top: 8px; font-size: 12px;">
+            <ion-icon name="bug-outline" slot="start"></ion-icon>
+            Run CORS Diagnostic
+          </ion-button>
         </div>
       </div>
     </div>
@@ -38,12 +47,19 @@
         <div class="user-avatar">{{ myId.substring(0,2).toUpperCase() }}</div>
         <div class="user-info">
           <h3>{{ myId }}</h3>
-          <span class="status-badge"><span class="dot"></span> Online</span>
+          <span class="status-badge" [ngClass]="connectionStatus">
+            <span class="dot"></span>
+            {{ connectionStatus === 'connected' ? 'Online' : connectionStatus === 'connecting' ? 'Connecting...' :
+            'Disconnected' }}
+          </span>
         </div>
         <div class="mode-toggle" (click)="toggleRecordMode()">
           <ion-icon [name]="isRecordMode ? 'mic-off-outline' : 'volume-high-outline'"></ion-icon>
           <span>{{ isRecordMode ? 'Record Only' : 'Live Play' }}</span>
         </div>
+        <ion-button fill="clear" color="medium" (click)="checkCors()">
+          <ion-icon slot="icon-only" name="bug-outline"></ion-icon>
+        </ion-button>
         <ion-button fill="clear" color="medium" (click)="logout()">
           <ion-icon slot="icon-only" name="log-out-outline"></ion-icon>
         </ion-button>
@@ -100,7 +116,7 @@
               <div class="u-avatar small">{{ user.substring(0,2).toUpperCase() }}</div>
               <div class="u-details">
                 <span class="u-name">{{ user }}</span>
-                <span class="u-status">Ready to talk</span>
+                <span class="u-status"><span class="dot mini"></span> Online</span>
               </div>
             </div>
             <div class="u-actions">

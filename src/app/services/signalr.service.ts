@@ -3,6 +3,9 @@ import * as signalR from '@microsoft/signalr';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Device } from '@capacitor/device';
+import { CapacitorHttp } from '@capacitor/core';
+
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
 @Injectable({
   providedIn: 'root'
@@ -13,8 +16,12 @@ export class SignalRService {
   public connectionId = new BehaviorSubject<string>('');
   public onlineUsers = new BehaviorSubject<string[]>([]);
   public isConnected = new BehaviorSubject<boolean>(false);
+  public connectionStatus$ = new BehaviorSubject<ConnectionStatus>('disconnected');
+  private retryCount = 0;
+  private readonly MAX_RETRIES = 5;
 
   private startPromise: Promise<void> | null = null;
+  private lastRegisteredUserId: string | null = null;
 
   constructor() {
     this.createConnection();
@@ -56,7 +63,11 @@ export class SignalRService {
   private createConnection() {
     this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl("http://192.168.0.104:5059/hubs/signaling")
-      .withAutomaticReconnect()
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: retryContext => {
+          return Math.min(10000, 1000 * retryContext.previousRetryCount);
+        }
+      })
       .build();
 
     this.hubConnection.on("ReceiveSignal", (data: any, senderId: string) => {
@@ -67,29 +78,100 @@ export class SignalRService {
       this.onlineUsers.next(users);
     });
 
-    this.hubConnection.onclose(() => this.isConnected.next(false));
-    this.hubConnection.onreconnected(() => this.isConnected.next(true));
+    this.hubConnection.onclose(() => {
+      this.isConnected.next(false);
+      this.connectionStatus$.next('disconnected');
+    });
+
+    this.hubConnection.onreconnecting(() => {
+      this.connectionStatus$.next('connecting');
+    });
+
+    this.hubConnection.onreconnected(() => {
+      this.isConnected.next(true);
+      this.connectionStatus$.next('connected');
+      if (this.lastRegisteredUserId) {
+        this.register(this.lastRegisteredUserId);
+      }
+    });
   }
 
-  private startConnection() {
-    this.startPromise = this.hubConnection
-      .start()
+  private startConnection(): Promise<void> {
+    if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      return Promise.resolve();
+    }
+    if (this.startPromise && this.hubConnection.state === signalR.HubConnectionState.Connecting) {
+      return this.startPromise;
+    }
+
+    this.connectionStatus$.next('connecting');
+    this.startPromise = this.hubConnection.start()
       .then(() => {
         console.log('SignalR Connection started');
+        this.retryCount = 0;
         this.connectionId.next(this.hubConnection.connectionId || '');
         this.isConnected.next(true);
+        this.connectionStatus$.next('connected');
+        this.startPromise = null;
       })
       .catch(err => {
+        this.startPromise = null;
         console.log('Error while starting connection: ' + err);
         this.isConnected.next(false);
+
+        if (this.retryCount < this.MAX_RETRIES) {
+          this.retryCount++;
+          this.connectionStatus$.next('connecting');
+          console.log(`Retrying connection (${this.retryCount}/${this.MAX_RETRIES})...`);
+          setTimeout(() => this.startConnection(), 5000);
+        } else {
+          this.connectionStatus$.next('disconnected');
+          console.log('Max retries reached. Connection stopped.');
+        }
+        throw err;
       });
+
+    return this.startPromise;
+  }
+
+  public async manualReconnect() {
+    this.retryCount = 0; // Reset counter for manual action
+    if (this.hubConnection.state !== signalR.HubConnectionState.Disconnected) {
+      await this.hubConnection.stop();
+    }
+    return this.startConnection();
+  }
+
+  public async testCors() {
+    try {
+      const options = {
+        url: 'http://192.168.0.104:5059/test-cors',
+      };
+
+      const response = await CapacitorHttp.get(options);
+      console.log('CORS Native Test Result:', response);
+
+      if (response.status === 200) {
+        return response.data;
+      } else {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+    } catch (err) {
+      console.error('CORS Native Test Failed:', err);
+      throw err;
+    }
   }
 
   private async ensureConnected() {
-    if (this.hubConnection.state === signalR.HubConnectionState.Disconnected) {
-      this.startConnection();
+    if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      return;
     }
-    await this.startPromise;
+
+    try {
+      await this.startConnection();
+    } catch (e) {
+      throw new Error("Connection is not active (State: " + this.hubConnection.state + ")");
+    }
   }
 
   public async sendSignal(data: any, targetUserId: string) {
@@ -103,6 +185,7 @@ export class SignalRService {
 
   public async register(userId: string) {
     try {
+      this.lastRegisteredUserId = userId;
       await this.ensureConnected();
       await this.hubConnection.invoke("Register", userId);
       if (this.currentFcmToken) {

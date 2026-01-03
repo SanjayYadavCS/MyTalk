@@ -6,7 +6,16 @@ const config: CapacitorConfig = {
   webDir: 'www',
   server: {
     cleartext: true,
-    allowNavigation: ['192.168.0.104:5059']
+    allowNavigation: ['*'],
+    androidScheme: 'http'
+  },
+  plugins: {
+    CapacitorHttp: {
+      enabled: false,
+    },
+    CapacitorCookies: {
+      enabled: false,
+    }
   }
 };
 
