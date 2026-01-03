@@ -1,46 +1,151 @@
-<ion-header [translucent]="true">
-  <ion-toolbar color="primary">
-    <ion-title>
-      MyTalk Audio
-    </ion-title>
-  </ion-toolbar>
-</ion-header>
+<ion-content [fullscreen]="true">
+  <div class="main-container">
+    <div class="header-section">
+      <div class="logo-area">
+        <ion-icon name="radio-outline" class="logo-icon"></ion-icon>
+        <h1 class="app-title">MyTalk</h1>
+      </div>
+      <p class="app-subtitle">Premium Audio Connections</p>
+    </div>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  <div id="container">
-    <div *ngIf="!isRegistered">
-      <ion-item>
-        <ion-label position="floating">Your User ID</ion-label>
-        <ion-input [(ngModel)]="myId" placeholder="Enter simple ID (e.g. user1)"></ion-input>
-      </ion-item>
-      <div class="ion-padding-top">
-        <ion-button expand="block" (click)="register()" [disabled]="!myId">
-          Register / Login
-        </ion-button>
+    <!-- Login Card -->
+    <div *ngIf="!isRegistered" class="auth-card-container">
+      <div class="glass-card animate-fade-up">
+        <div class="card-header">
+          <h2>Welcome Back</h2>
+          <p>Join the secure network to start talking</p>
+        </div>
+        <div class="card-body">
+          <div class="input-group">
+            <ion-label>User Identity</ion-label>
+            <ion-item lines="none" class="custom-input">
+              <ion-icon name="person-outline" slot="start"></ion-icon>
+              <ion-input [(ngModel)]="myId" placeholder="Enter your ID"></ion-input>
+            </ion-item>
+          </div>
+          <ion-button expand="block" (click)="register()" [disabled]="!myId" class="primary-btn">
+            Connect to Network
+          </ion-button>
+        </div>
       </div>
     </div>
 
-    <div *ngIf="isRegistered">
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Status: Online</ion-card-title>
-          <ion-card-subtitle>ID: {{ myId }}</ion-card-subtitle>
-        </ion-card-header>
-        <ion-card-content>
-          Ready to receive announcements...
-        </ion-card-content>
-      </ion-card>
+    <!-- Active User Section -->
+    <div *ngIf="isRegistered" class="dashboard-container animate-fade-in">
 
-      <ion-item class="ion-margin-top">
-        <ion-label position="floating">Target User ID</ion-label>
-        <ion-input [(ngModel)]="targetId" placeholder="Who to call?"></ion-input>
-      </ion-item>
-      
-      <div class="ion-padding-top">
-        <ion-button expand="block" color="danger" (click)="startAnnouncement()" [disabled]="!targetId">
-          Start Announcement (Talk)
+      <!-- Current User Profile -->
+      <div class="profile-strip">
+        <div class="user-avatar">{{ myId.substring(0,2).toUpperCase() }}</div>
+        <div class="user-info">
+          <h3>{{ myId }}</h3>
+          <span class="status-badge"><span class="dot"></span> Online</span>
+        </div>
+        <div class="mode-toggle" (click)="toggleRecordMode()">
+          <ion-icon [name]="isRecordMode ? 'mic-off-outline' : 'volume-high-outline'"></ion-icon>
+          <span>{{ isRecordMode ? 'Record Only' : 'Live Play' }}</span>
+        </div>
+        <ion-button fill="clear" color="medium" (click)="logout()">
+          <ion-icon slot="icon-only" name="log-out-outline"></ion-icon>
         </ion-button>
       </div>
+
+      <!-- Incoming Call Card -->
+      <div *ngIf="incomingCall" class="incoming-call-overlay animate-fade-in">
+        <div class="call-card glass-morph">
+          <div class="ringing-wrapper">
+            <div class="ring-pulse"></div>
+            <div class="caller-avatar">{{ incomingCall.senderId.substring(0,2).toUpperCase() }}</div>
+          </div>
+
+          <h2 class="caller-name">{{ incomingCall.senderId }}</h2>
+          <p class="call-label">INCOMING CALL</p>
+
+          <div class="slider-container">
+            <div class="slider-track">
+              <span class="swipe-label left">Reject</span>
+              <span class="swipe-label right">Answer</span>
+              <ion-range min="0" max="100" [(ngModel)]="sliderValue" (ionChange)="onSliderChange($event)" debounce="0"
+                class="call-slider">
+                <ion-icon slot="start" name="close-circle" color="danger"></ion-icon>
+                <ion-icon slot="end" name="checkmark-circle" color="success"></ion-icon>
+              </ion-range>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Call Display -->
+      <div *ngIf="isCallActive" class="active-call-container animate-scale-in">
+        <div class="call-status">
+          <div class="pulsing-circle"></div>
+          <h2>{{ currentTargetId }}</h2>
+          <p>{{ callDuration }} • Voice Streaming</p>
+        </div>
+        <ion-button expand="block" color="danger" class="end-call-btn" (click)="stopCall()">
+          <ion-icon name="call-outline" slot="start" class="rotate-135"></ion-icon>
+          End Call
+        </ion-button>
+      </div>
+
+      <!-- Online Users List -->
+      <div *ngIf="!isCallActive" class="user-list-section">
+        <div class="section-header">
+          <h3>Online Friends</h3>
+          <span class="count">{{ onlineUsers.length }} Active</span>
+        </div>
+
+        <div class="users-grid">
+          <div *ngFor="let user of onlineUsers" class="user-card animate-fade-in">
+            <div class="u-info">
+              <div class="u-avatar small">{{ user.substring(0,2).toUpperCase() }}</div>
+              <div class="u-details">
+                <span class="u-name">{{ user }}</span>
+                <span class="u-status">Ready to talk</span>
+              </div>
+            </div>
+            <div class="u-actions">
+              <button class="call-icon-btn announce" (click)="startCall(user, 'announcement')">
+                <ion-icon name="megaphone-outline"></ion-icon>
+              </button>
+              <button class="call-icon-btn voice" (click)="startCall(user, 'call')">
+                <ion-icon name="call-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="onlineUsers.length === 0" class="empty-state">
+            <ion-icon name="people-outline"></ion-icon>
+            <p>Wait for friends to join the network</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved Messages List -->
+      <div *ngIf="!isCallActive" class="messages-section animate-fade-in">
+        <div class="section-header">
+          <h3>Recorded Messages</h3>
+          <span class="count">{{ savedMessages.length }}</span>
+        </div>
+
+        <div class="messages-list">
+          <div *ngFor="let msg of savedMessages" class="message-item">
+            <div class="msg-icon">
+              <ion-icon name="play-circle" color="secondary"></ion-icon>
+            </div>
+            <div class="msg-details">
+              <h4>From: {{ msg.senderId }}</h4>
+              <p>{{ msg.timestamp | date:'shortTime' }}</p>
+              <audio controls class="custom-audio-player" [src]="msg.url">
+              </audio>
+            </div>
+          </div>
+
+          <div *ngIf="savedMessages.length === 0" class="empty-state mini">
+            <p>No saved messages yet</p>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </ion-content>
